@@ -1,0 +1,248 @@
+\UseRawInputEncoding
+\documentclass{article}
+
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{listingsutf8}
+\usepackage[polish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{pgfplots}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{siunitx}
+\sisetup{group-separator = {\,}}
+\pgfplotsset{compat=1.18}
+\usepackage{pgfplotstable}
+\usepackage{xcolor}
+\usepackage{csvsimple}  
+\usepackage{etoolbox}    
+\usepackage{xstring} 
+
+\lstset{
+  inputencoding=utf8,
+  extendedchars=true,
+  literate=
+   {ą}{{\k{a}}}1 {Ą}{{\k{A}}}1
+   {ć}{{\'c}}1   {Ć}{{\'C}}1
+   {ę}{{\k{e}}}1 {Ę}{{\k{E}}}1
+   {ł}{{\l}}1    {Ł}{{\L}}1
+   {ń}{{\'n}}1   {Ń}{{\'N}}1
+   {ó}{{\'o}}1   {Ó}{{\'O}}1
+   {ś}{{\'s}}1   {Ś}{{\'S}}1
+   {ź}{{\'z}}1   {Ź}{{\'Z}}1
+   {ż}{{\.z}}1   {Ż}{{\.Z}}1,
+  basicstyle=\ttfamily\small,
+  numbers=left,
+  numberstyle=\tiny,
+  stepnumber=1,
+  numbersep=5pt,
+  showstringspaces=false,
+  tabsize=2,
+  breaklines=true,
+  frame=single,
+  language=C++,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{teal},
+}
+
+\geometry{margin=2.5cm}
+\title{Lista 1}
+\author{Anna Leszczyńska}
+\date{\ Październik 2025r }
+
+\begin{document}
+\maketitle
+\section{Wstęp}
+W sprawozdraniu porównane są algorytmy insertion sort, merge sort, heap sort oraz ich modyfikacje.
+\section{Najciekawsze fragmenty kodu }
+
+\subsection{Insertion sort: liczenie tylko zapisów do tablicy}
+ W pętli przesuwającej elementy liczymy wyłącznie zapisy do tablicy (a nie przypisania do zmiennych lokalnych). To pozwala porównywać realny koszt pamięciowy między algorytmami.
+
+ Pętla przesuwa większe elementy w prawo (\texttt{ASSIGN++} za każdy zapis), a test porządkowy podbija \texttt{COMP++}.
+\begin{lstlisting}
+while (j >= 0) {
+    COMP++;                    
+    if (!(a[j] > key)) break;
+    a[j+1] = a[j]; ASSIGN++;   
+    --j;
+}
+a[j+1] = key; ASSIGN++;
+\end{lstlisting}
+
+\subsection{DoubleInsertion: wstawianie pary bez nadpisywania}
+ Każdą iterację traktujemy jako wstawienie  dwóch elementów naraz. Najpierw porządkujemy parę w 2 zmiennych (\(x\le y\)), potem wstawiamy najpierw \(x\), a następnie \(y\) do poszerzonego prefiksu — bez ryzyka nadpisania.
+
+\begin{lstlisting}
+int x = a[i-2], y = a[i-1];
+COMP++; if (x > y) { int t=x; x=y; y=t; } 
+
+int j = i - 3;
+while (j >= 0) { COMP++; if (!(a[j] > x)) break;
+  a[j+1] = a[j]; ASSIGN++; --j; }
+a[j+1] = x; ASSIGN++;
+
+int k = i - 2;
+while (k >= 0) { COMP++; if (!(a[k] > y)) break;
+  a[k+1] = a[k]; ASSIGN++; --k; }
+a[k+1] = y; ASSIGN++;
+\end{lstlisting}
+
+\subsection{MergeSort(2): proste scalanie z jawnym kosztem buforów}
+Podkreślamy, że kopiowanie do buforów to też zapisy do tablic. Dzięki temu „koszt pamięciowy” mergesorta jest porównywalny z heapsortem.
+
+ Dwa bufory, liniowe scalanie, każdy zapis do \texttt{a[k]} zwiększa \texttt{ASSIGN}.
+\begin{lstlisting}
+for (int i = 0; i < n1; ++i) { Lbuf[i] = a[L+i]; ASSIGN++; }
+for (int j = 0; j < n2; ++j) { Rbuf[j] = a[M+1+j]; ASSIGN++; }
+
+while (i < n1 && j < n2) {
+    COMP++; // Lbuf[i] <= Rbuf[j] ?
+    if (Lbuf[i] <= Rbuf[j]) { a[k++] = Lbuf[i++]; ASSIGN++; }
+    else                     { a[k++] = Rbuf[j++]; ASSIGN++; }
+}
+\end{lstlisting}
+
+\subsection{MergeSort(3): wybór minimum z trzech w dwóch porównaniach}
+ Wybieramy minimum z \(\{A[i],B[j],C[k]\}\) tylko dwoma porównaniami: najpierw \(A\) z \(B\), potem wynik z \(C\). Minimalizujemy \texttt{COMP}, kosztem większej liczby zapisów (trzy bufory).
+
+\begin{lstlisting}
+COMP++; bool Ai_le_Bj = (A[i] <= B[j]);
+int vMinAB = Ai_le_Bj ? A[i] : B[j];
+COMP++; 
+if (vMinAB <= C[k]) {
+    if (Ai_le_Bj) { a[t++] = A[i++]; ASSIGN++; }
+    else          { a[t++] = B[j++]; ASSIGN++; }
+} else {
+    a[t++] = C[k++]; ASSIGN++;
+}
+\end{lstlisting}
+
+\subsection{HeapSort (binarny)}
+ Pokazujemy realny profil porównań: dwa potencjalne testy dzieci na poziom. Dzięki temu można porównać z kopcem trójdzielnym.
+ Spychamy element w dół, każde porównanie zwiększa \texttt{COMP}, a zamiana to \texttt{countedSwap} (liczy tylko zapisy do tablicy).
+\begin{lstlisting}
+int l = 2*i+1, r = 2*i+2;
+if (l < n) { COMP++; if (a[l] > a[largest]) largest = l; }
+if (r < n) { COMP++; if (a[r] > a[largest]) largest = r; }
+if (largest != i) { countedSwap(a, i, largest); i = largest; } else break;
+\end{lstlisting}
+
+\subsection{HeapSort (ternarny)}
+Ten kod oblicza indeksy trzech potencjalnych dzieci elementu o indeksie $i$ ($3i+1, 3i+2, 3i+3$). Następnie, za pomocą porównań (COMP++), ustala, który z czterech elementów (rodzic lub jedno z trzech dzieci) jest największy. Jeśli to dziecko jest największe, element jest zamieniany z rodzicem (countedSwap inkrementuje ASSIGN++) i proces przesiewania w dół jest kontynuowany (i = largest). Jeśli rodzic jest największy, działanie funkcji jest przerywane 
+\begin{lstlisting}
+int c1 = 3*i+1, c2 = 3*i+2, c3 = 3*i+3;
+if (c1 < n) { COMP++; if (a[c1] > a[largest]) largest = c1; }
+if (c2 < n) { COMP++; if (a[c2] > a[largest]) largest = c2; }
+if (c3 < n) { COMP++; if (a[c3] > a[largest]) largest = c3; }
+if (largest != i) { countedSwap(a, i, largest); i = largest; } else break;
+\end{lstlisting}
+\section{Metodologia eksperymentów}
+Program generuje pięć scenariuszy danych:
+\texttt{Random}, \texttt{NearlySorted}, \texttt{Sorted}, \texttt{Reversed}, \texttt{FewUniques}.
+Dla rozmiarów $n \in \{50, 200, 800, 2000\}$ i $T=5$ uruchamień dla każdego algorytmu, zapisuje wyniki do wyniki.csv w formacie:
+scenario,n,algorithm,comps,assigns, time(w ms) .
+
+
+\section{Wyniki: tabele}
+Poniższe tabele są tworzone bezpośrednio z danych zawartych  w pliku wyniki.csv.
+
+\begin{table}[H]
+\centering
+\csvreader[
+  separator=comma,
+  head to column names,
+  tabular=l r l r r r,
+  table head={\toprule Scen. & $n$ & Algorytm & Porównania & Przypisania & Czas [ms]\\\midrule},
+  table foot={\bottomrule},
+  late after line=\\,
+  before reading=\setcounter{csvrow}{0}, 
+  filter expr={ test{\ifnumless{\value{csvrow}}{12}} and test{\ifnumcomp{\n}{=}{50}} },
+  after line=\stepcounter{csvrow}       
+]{wyniki.csv}{}%
+{\scenario & \n & \algorithm & \comps & \assigns & \timems}
+\caption{Pierwsze 6 wyników dla $n=50$.}
+\end{table}
+
+\begin{table}[H]
+\centering
+\csvreader[
+  separator=comma,
+  head to column names,
+  tabular=l r l r r r,
+  table head={\toprule Scen. & $n$ & Algorytm & Porównania & Przypisania & Czas [ms]\\\midrule},
+  table foot={\bottomrule},
+  late after line=\\,
+  before reading=\setcounter{csvrow}{0},
+  filter expr={ test{\ifnumless{\value{csvrow}}{12}} and test{\ifnumcomp{\n}{=}{800}} },
+  after line=\stepcounter{csvrow}
+]{wyniki.csv}{}%
+{\scenario & \n & \algorithm & \comps & \assigns & \timems}
+\caption{Pierwsze 6 wyników dla $n=800$.}
+\end{table}
+
+\begin{table}[H]
+\centering
+\csvreader[
+  separator=comma,
+  head to column names,
+  tabular=l r l r r r,
+  table head={\toprule Scen. & $n$ & Algorytm & Porównania & Przypisania & Czas [ms]\\\midrule},
+  table foot={\bottomrule},
+  late after line=\\,
+  before reading=\setcounter{csvrow}{0},
+  filter expr={ test{\ifnumless{\value{csvrow}}{12}} and test{\ifnumcomp{\n}{=}{2000}} },
+  after line=\stepcounter{csvrow}
+]{wyniki.csv}{}%
+{\scenario & \n & \algorithm & \comps & \assigns & \timems}
+\caption{Pierwsze 6 wyników dla $n=2000$.}
+\end{table}
+
+
+% ====================== WYKRES 1: Przypisania (Random, n=800) ======================
+\def\dataAssigns{}%
+\csvreader[
+  separator=comma,
+  head to column names,
+  filter test = \ifboolexpr{
+     test{\IfStrEq{\scenario}{Random}} and test{\ifnumcomp{\n}{=}{800}}
+  }
+]{wyniki.csv}{}{
+  \xdef\dataAssigns{\dataAssigns(\algorithm,\assigns)}%
+}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  width=.95\linewidth, height=7cm,
+  symbolic x coords={Insertion,DoubleInsertion,MergeSort2,MergeSort3,HeapBinary,HeapTernary},
+  xtick=data,
+  xticklabel style={rotate=20, anchor=east},
+  ylabel={Przypisania (zapisy do tablic)},
+  title={Random, n=800},
+  ymin=0,
+  bar width=8pt
+]
+\addplot+ coordinates {\dataAssigns};
+\end{axis}
+\end{tikzpicture}
+\caption{Zapis do tablic (Random, n=800).}
+\end{figure}
+
+\section{Wnioski}
+\begin{itemize}
+ \item \textbf{Insertion} wymaga największej ilości przypisań i zajmuje najdłużej.
+ \item \textbf{Heap (binarny) vs Heap (ternarny):} Różnice w liczbie porównań i zapisów są niewielkie, zależne od danych.
+ \item \textbf{Rodziny Merge vs Heap:} MergeSort wymaga dodatkowych buforów, więc liczba zapisów do tablic jest wyższa niż w HeapSort.
+\end{itemize}
+
+\end{document}
