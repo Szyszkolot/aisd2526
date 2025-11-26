@@ -1,1 +1,377 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <chrono>
+#include <fstream>
+#include <functional>
+using namespace std;
+
+// Liczniki operacji
+
+long long porownania = 0;
+long long przypisania = 0;
+
+void zeruj_liczniki() {
+    porownania = 0;
+    przypisania = 0;
+}
+
+bool por_leq(int a, int b) { porownania++; return a <= b; }
+bool por_lt (int a, int b) { porownania++; return a  < b; }
+bool por_gt (int a, int b) { porownania++; return a  > b; }
+
+// dla int
+void przyp(int &a, int b) {
+    przypisania++;
+    a = b;
+}
+
+// dla double
+void przyp(double &a, double b) {
+    przypisania++;
+    a = b;
+}
+
+void zamien(int &a, int &b) {
+    przypisania += 3;
+    int t = a;
+    a = b;
+    b = t;
+}
+
+// QuickSort – jeden pivot
+
+int podzial1(vector<int> &v, int l, int p) {
+    int pivot = v[p];
+    przypisania++;
+
+    int i = l;
+    for (int j = l; j < p; j++) {
+        if (por_leq(v[j], pivot)) {
+            zamien(v[i], v[j]);
+            i++;
+        }
+    }
+    zamien(v[i], v[p]);
+    return i;
+}
+
+void qs1(vector<int> &v, int l, int p) {
+    if (l < p) {
+        int s = podzial1(v, l, p);
+        qs1(v, l, s - 1);
+        qs1(v, s + 1, p);
+    }
+}
+
+//QuickSort – dwa pivoty
+
+void qs2(vector<int> &v, int l, int p) {
+    if (l >= p) return;
+
+    if (por_gt(v[l], v[p])) zamien(v[l], v[p]);
+
+    int a = v[l], b = v[p];
+    przypisania += 2;
+
+    int i = l + 1;
+    int lt = l + 1;
+    int gt = p - 1;
+
+    while (i <= gt) {
+        if (por_lt(v[i], a)) {
+            zamien(v[i], v[lt]);
+            lt++; i++;
+        } else if (por_gt(v[i], b)) {
+            zamien(v[i], v[gt]);
+            gt--;
+        } else {
+            i++;
+        }
+    }
+
+    lt--;
+    gt++;
+    zamien(v[l], v[lt]);
+    zamien(v[p], v[gt]);
+
+    qs2(v, l, lt - 1);
+    qs2(v, lt + 1, gt - 1);
+    qs2(v, gt + 1, p);
+}
+
+
+//Radix Sort
+
+void zlicz_cyfre(vector<int> &v, int exp, int base) {
+    int n = (int)v.size();
+    vector<int> out(n);
+    vector<int> cnt(base, 0);
+
+    for (int i = 0; i < n; i++) {
+        int c = (v[i] / exp) % base;
+        if (c < 0) c += base;
+        cnt[c]++;
+    }
+
+    for (int i = 1; i < base; i++)
+        cnt[i] += cnt[i - 1];
+
+    for (int i = n - 1; i >= 0; i--) {
+        int c = (v[i] / exp) % base;
+        if (c < 0) c += base;
+        przyp(out[cnt[c] - 1], v[i]);
+        cnt[c]--;
+    }
+
+    for (int i = 0; i < n; i++)
+        przyp(v[i], out[i]);
+}
+
+void radix_nieujemne(vector<int> &v, int base) {
+    if (v.empty()) return;
+
+    int mx = *max_element(v.begin(), v.end());
+    for (int exp = 1; mx / exp > 0; exp *= base)
+        zlicz_cyfre(v, exp, base);
+}
+
+void radix(vector<int> &v, int base) {
+    vector<int> ujemne, dodatnie;
+
+    for (int x : v) {
+        if (x < 0) {
+            przypisania++;
+            ujemne.push_back(-x);
+        } else {
+            przypisania++;
+            dodatnie.push_back(x);
+        }
+    }
+
+    radix_nieujemne(ujemne, base);
+    radix_nieujemne(dodatnie, base);
+
+    v.clear();
+
+    for (int i = (int)ujemne.size() - 1; i >= 0; i--) {
+        przypisania++;
+        v.push_back(-ujemne[i]);
+    }
+    for (int x : dodatnie) {
+        przypisania++;
+        v.push_back(x);
+    }
+}
+
+//Lista jednokierunkowa z insertion sortem
+
+struct Wezel {
+    int wartosc;
+    Wezel* nastepny;
+    Wezel(int w) {
+        wartosc = w;
+        nastepny = nullptr;
+    }
+};
+
+struct Lista {
+    Wezel* glowa;
+
+    Lista() {
+        glowa = nullptr;
+    }
+
+    void dodaj_na_poczatek(int x) {
+        Wezel* nowy = new Wezel(x);
+        nowy->nastepny = glowa;
+        glowa = nowy;
+    }
+
+    void insertion_sort() {
+        Wezel* posortowana = nullptr;
+        Wezel* cur = glowa;
+
+        //przechodzimy po liście
+        while (cur != nullptr) {
+            Wezel* nxt = cur->nastepny;
+
+            //wstawiamy na początek lub przed pierwszy większy element
+            if (posortowana == nullptr || cur->wartosc <= posortowana->wartosc) {
+                cur->nastepny = posortowana;
+                posortowana = cur;
+            } else {
+                Wezel* p = posortowana;
+                while (p->nastepny != nullptr && p->nastepny->wartosc < cur->wartosc) {
+                    p = p->nastepny;
+                }
+                cur->nastepny = p->nastepny;
+                p->nastepny = cur;
+            }
+
+            cur = nxt;
+        }
+
+        glowa = posortowana;
+    }
+
+    ~Lista() {
+        Wezel* p = glowa;
+        while (p != nullptr) {
+            Wezel* nxt = p->nastepny;
+            delete p;
+            p = nxt;
+        }
+    }
+};
+
+//bucket sort 
+
+void insert_kub(vector<double> &b) {
+    int n = (int)b.size();
+    for (int i = 1; i < n; i++) {
+        double k = b[i];
+        przyp(k, k); 
+        int j = i - 1;
+        while (j >= 0 && por_gt(b[j], k)) {
+            przyp(b[j + 1], b[j]);
+            j--;
+        }
+        przyp(b[j + 1], k);
+    }
+}
+
+void bucket(vector<double> &v, int B) {
+    if (v.empty()) return;
+
+    double mn = *min_element(v.begin(), v.end());
+    double mx = *max_element(v.begin(), v.end());
+    if (mn == mx) return;
+
+    vector<vector<double>> kub(B);
+
+    double r = mx - mn;
+    for (double x : v) {
+        int i = (int)((x - mn) / r * B);
+        if (i == B) i--;
+        przypisania++;
+        kub[i].push_back(x);
+    }
+
+    for (int i = 0; i < B; i++)
+        insert_kub(kub[i]);
+
+    int k = 0;
+    for (int i = 0; i < B; i++)
+        for (double x : kub[i])
+            przyp(v[k++], x);
+}
+
+
+//Pomiar czasu
+
+template <typename F>
+long long czas_ms(F f) {
+    auto t1 = chrono::high_resolution_clock::now();
+    f();
+    auto t2 = chrono::high_resolution_clock::now();
+    return chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+}
+
+
+//generowanie danych
+
+vector<int> generuj(string s, int n, mt19937 &rng) {
+    vector<int> v(n);
+    uniform_int_distribution<int> los(-1000000, 1000000);
+
+    if (s == "Random") {
+        for (int i = 0; i < n; i++) v[i] = los(rng);
+    }
+    else if (s == "NearlySorted") {
+        for (int i = 0; i < n; i++) v[i] = los(rng);
+        sort(v.begin(), v.end());
+        int ile = max(1, n / 20);
+        uniform_int_distribution<int> ix(0, n - 1);
+        for (int k = 0; k < ile; k++) swap(v[ix(rng)], v[ix(rng)]);
+    }
+    else if (s == "Reverse") {
+        for (int i = 0; i < n; i++) v[i] = los(rng);
+        sort(v.begin(), v.end(), greater<int>());
+    }
+    else if (s == "ManyDuplicates") {
+        uniform_int_distribution<int> los2(-100, 100);
+        for (int i = 0; i < n; i++) v[i] = los2(rng);
+    }
+
+    return v;
+}
+
+//zapis do csv i wyniki
+int main() {
+    mt19937 rng(12345);
+
+    ofstream plik("wyniki2.csv");
+    if (!plik) {
+        cout << "Blad pliku\n";
+        return 1;
+    }
+
+    plik << "scenario,algorithm,run,n,comps,assigns,time_ms\n";
+
+    vector<string> scen = {"Random", "NearlySorted", "Reverse", "ManyDuplicates"};
+    vector<int> N = {100, 200, 500, 1000, 2000, 5000};
+
+    // różne podstawy dla Radix Sort
+    vector<int> bases = {2, 4, 8, 10, 16};
+
+    for (string s : scen) {
+        for (int n : N) {
+            vector<int> dane = generuj(s, n, rng);
+
+            // QuickSort 1 pivot
+            {
+                vector<int> a = dane;
+                zeruj_liczniki();
+                long long t = czas_ms([&]() { qs1(a, 0, (int)a.size() - 1); });
+                plik << s << ",Quick1," << 0 << "," << n << ","
+                     << porownania << "," << przypisania << "," << t << "\n";
+            }
+
+            // QuickSort 2 pivoty
+            {
+                vector<int> a = dane;
+                zeruj_liczniki();
+                long long t = czas_ms([&]() { qs2(a, 0, (int)a.size() - 1); });
+                plik << s << ",Quick2," << 0 << "," << n << ","
+                     << porownania << "," << przypisania << "," << t << "\n";
+            }
+
+            // Bucket sort
+            {
+                vector<double> a(n);
+                for (int i = 0; i < n; i++) a[i] = dane[i];
+
+                zeruj_liczniki();
+                long long t = czas_ms([&]() { bucket(a, 100); });
+                plik << s << ",Bucket," << 0 << "," << n << ","
+                     << porownania << "," << przypisania << "," << t << "\n";
+            }
+
+            // Radix sort dla różnych podstaw
+            for (int base : bases) {
+                vector<int> a = dane;
+                zeruj_liczniki();
+                long long t = czas_ms([&]() { radix(a, base); });
+                plik << s << ",Radix" << base << "," << 0 << "," << n << ","
+                     << porownania << "," << przypisania << "," << t << "\n";
+            }
+        }
+    }
+
+    cout << "zapisano wyniki2.csv\n";
+    return 0;
+}
+
 
