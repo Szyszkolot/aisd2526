@@ -1,0 +1,182 @@
+\UseRawInputEncoding
+\documentclass{article}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{csvsimple}
+\usepackage{graphicx}
+
+\usepackage{float}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{amsmath}
+\geometry{margin=2.5cm}
+
+\pgfplotsset{compat=1.18}
+
+\title{Analiza i porównanie algorytmów sortowania}
+\author{Anna Leszczyńska}
+\date{Listopad 2025}
+
+\begin{document}
+\maketitle
+
+\section{Wstęp}
+
+Omówiona tu będzie implementacja i analiza działania czterech algorytmów sortowania:
+
+\begin{itemize}
+    \item QuickSort z jednym pivotem,
+    \item QuickSort dwupivotowy,
+    \item RadixSort ,
+    \item Sortowanie kubełkowe.
+\end{itemize}
+
+Mierzono:
+\begin{itemize}
+    \item liczbę porównań kluczy,
+    \item liczbę przypisań,
+    \item czas działania w milisekundach.
+\end{itemize}
+.
+
+Dane zostały zapisane w pliku wyniki2.csv, który został  wykorzystany do generowania tabel i wykresów.
+
+\section{Najważniejsze fragmenty kodu i opis zaimplementowanych algorytmów}
+
+\subsection{QuickSort z jednym pivotem }
+
+QuickSort jest klasycznym algorytmem sortowania dziel–i–zwyciężaj.  
+ Jako pivot wybierany jest ostatni element tablicy.
+
+\begin{lstlisting}[language=C++,basicstyle=\footnotesize\ttfamily]
+int podziel_jeden_pivot(vector<int>& a, int lewy, int prawy) {
+    int pivot = a[prawy];
+    g_liczniki.przypisania++;
+
+    int i = lewy;
+    for (int j = lewy; j < prawy; j++) {
+        if (porownaj_mniejsze_rowne(a[j], pivot)) {
+            zamien(a[i], a[j]);
+            i++;
+        }
+    }
+    zamien(a[i], a[prawy]);
+    return i;
+}
+\end{lstlisting}
+
+\subsection{QuickSort z dwoma pivotami (dual pivot)}
+
+\begin{lstlisting}[language=C++,basicstyle=\footnotesize\ttfamily]
+void szybkie_sortowanie_dwa_pivoty(vector<int>& a, int lewy, int prawy) {
+    if (lewy >= prawy) return;
+
+    if (porownaj_wieksze(a[lewy], a[prawy]))
+        zamien(a[lewy], a[prawy]);
+
+    int p = a[lewy], q = a[prawy];
+    g_liczniki.przypisania += 2;
+
+    int lt = lewy + 1, gt = prawy - 1, i = lt;
+
+    while (i <= gt) {
+        if (porownaj_mniejsze(a[i], p)) {
+            zamien(a[i], a[lt]); lt++; i++;
+        } else if (porownaj_wieksze(a[i], q)) {
+            zamien(a[i], a[gt]); gt--;
+        } else i++;
+    }
+    lt--; gt++;
+    zamien(a[lewy], a[lt]);
+    zamien(a[prawy], a[gt]);
+
+    szybkie_sortowanie_dwa_pivoty(a, lewy, lt - 1);
+    szybkie_sortowanie_dwa_pivoty(a, lt + 1, gt - 1);
+    szybkie_sortowanie_dwa_pivoty(a, gt + 1, prawy);
+}
+\end{lstlisting}
+
+\subsection{ RadixSort }
+
+Najważniejszym etapem algorytmu RadixSort jest sortowanie
+po pojedynczej cyfrze przy zadanej podstawie.
+Funkcja zlicz\_cyfre wykonuje sortowanie pozycyjne.
+
+\begin{lstlisting}[language=C++,basicstyle=\footnotesize\ttfamily]
+void zlicz_cyfre(vector<int> &v, int exp, int base) {
+    int n = (int)v.size();
+    vector<int> out(n);
+    vector<int> cnt(base, 0);
+
+    //Zliczanie wystąpien każdej cyfry
+    for (int i = 0; i < n; i++) {
+        int c = (v[i] / exp) % base;
+        if (c < 0) c += base;   //do liczb ujemnych
+        cnt[c]++;
+    }
+
+    //Tworzenie prefiksow 
+    for (int i = 1; i < base; i++)
+        cnt[i] += cnt[i - 1];
+
+    // Przepisanie elementów w odpowiedniej kolejności
+    for (int i = n - 1; i >= 0; i--) {
+        int c = (v[i] / exp) % base;
+        if (c < 0) c += base;
+        przyp(out[cnt[c] - 1], v[i]); 
+        cnt[c]--;
+    }
+
+    //Kopiowanie posortowanej tablicy z powrotem do v
+    for (int i = 0; i < n; i++)
+        przyp(v[i], out[i]);
+}
+\end{lstlisting}
+
+Funkcja wykonuje jeden pełny etap sortowania pozycyjnego,  nie wykonuje żadnych porównań między wartościami,
+przez co RadixSort jest algorytmem nieporównawczym.
+
+\subsection{Sortowanie kubełkowe}
+
+\begin{lstlisting}[language=C++,basicstyle=\footnotesize\ttfamily]
+void sortowanie_w_kubelku_przez_wstawianie(vector<double>& b) {
+    for (int i = 1; i < b.size(); i++) {
+        double klucz = b[i];
+        g_liczniki.przypisania++;
+        int j = i - 1;
+
+        while (j >= 0 && porownaj_wieksze(b[j], klucz)) {
+            przypisz(b[j+1], b[j]);
+            j--;
+        }
+        przypisz(b[j+1], klucz);
+    }
+}
+\end{lstlisting}
+
+\section{Tabele wyników}
+
+\begin{table}[H]
+\centering
+\caption{Fragment danych (Random)}
+\csvreader[
+    tabular=|c|c|c|c|c|c|c|,
+    table head=\hline Scen. & Algorytm & Run & n & Por. & Przyp. & Czas (ms)\\\hline,
+    late after line=\\\hline
+]{wyniki2.csv}{\csvcoli,\csvcolii,\csvcoliii,\csvcoliv,\csvcolv,\csvcolvi,\csvcolvii}{
+\csvcoli & \csvcolii & \csvcoliii & \csvcoliv & \csvcolv & \csvcolvi & \csvcolvii
+}
+\end{table}
+
+\section{Wykresy}
+
+
+\section{Podsumowanie}
+
+Zaimplementowane algorytmy wykazują różne właściwości, co dobrze obrazuje analiza czasu, liczby porównań i przypisań.
+
+\end{document}
