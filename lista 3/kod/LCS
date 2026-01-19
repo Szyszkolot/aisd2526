@@ -1,0 +1,150 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <random>
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+
+using namespace std;
+
+// LCS ITERACYJNY
+pair<int, string> lcs_iter(const string& X, const string& Y) {
+    int m = (int)X.size(), n = (int)Y.size();
+    vector<vector<int>> c(m + 1, vector<int>(n + 1, 0));
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (X[i - 1] == Y[j - 1]) c[i][j] = c[i - 1][j - 1] + 1;
+            else c[i][j] = max(c[i - 1][j], c[i][j - 1]);
+        }
+    }
+
+    string lcs;
+    int i = m, j = n;
+    while (i > 0 && j > 0) {
+        if (X[i - 1] == Y[j - 1]) {
+            lcs.push_back(X[i - 1]);
+            --i; --j;
+        }
+        else if (c[i - 1][j] >= c[i][j - 1]) {
+            --i;
+        }
+        else {
+            --j;
+        }
+    }
+    reverse(lcs.begin(), lcs.end());
+    return { c[m][n], lcs };
+}
+
+
+int dp_rec(int i, int j, const string& X, const string& Y, vector<vector<int>>& c) {
+    if (i == 0 || j == 0) return 0;
+    if (c[i][j] != -1) return c[i][j];
+
+    if (X[i - 1] == Y[j - 1])
+        return c[i][j] = dp_rec(i - 1, j - 1, X, Y, c) + 1;
+
+    return c[i][j] = max(dp_rec(i - 1, j, X, Y, c),
+        dp_rec(i, j - 1, X, Y, c));
+}
+// LCS rek
+pair<int, string> lcs_rek(const string& X, const string& Y) {
+    int m = (int)X.size(), n = (int)Y.size();
+    vector<vector<int>> c(m + 1, vector<int>(n + 1, -1));
+    for (int i = 0; i <= m; i++) c[i][0] = 0;
+    for (int j = 0; j <= n; j++) c[0][j] = 0;
+
+    int len = dp_rec(m, n, X, Y, c);
+
+    string lcs;
+    int i = m, j = n;
+    while (i > 0 && j > 0) {
+        if (X[i - 1] == Y[j - 1]) {
+            lcs.push_back(X[i - 1]);
+            --i; --j;
+        }
+        else {
+            if (c[i - 1][j] == -1) dp_rec(i - 1, j, X, Y, c);
+            if (c[i][j - 1] == -1) dp_rec(i, j - 1, X, Y, c);
+
+            if (c[i - 1][j] >= c[i][j - 1]) --i;
+            else --j;
+        }
+    }
+    reverse(lcs.begin(), lcs.end());
+    return { len, lcs };
+}
+
+string gen_string(int n, const string& alphabet, mt19937& rng) {
+    uniform_int_distribution<int> dist(0, (int)alphabet.size() - 1);
+    string s;
+    s.reserve(n);
+    for (int i = 0; i < n; i++) s.push_back(alphabet[dist(rng)]);
+    return s;
+}
+
+bool is_subsequence(const string& sub, const string& s) {
+    size_t i = 0;
+    for (char ch : s) if (i < sub.size() && sub[i] == ch) i++;
+    return i == sub.size();
+}
+
+template <typename F>
+double time_ms(F f) {
+    auto t1 = chrono::high_resolution_clock::now();
+    f();
+    auto t2 = chrono::high_resolution_clock::now();
+    return chrono::duration<double, milli>(t2 - t1).count();
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    mt19937 rng(12345);
+    string alphabet = "ABCD";
+
+    ofstream plik("wyniki_lcs_avg3.csv");
+    if (!plik) {
+        cout << "Blad zapisu pliku!\n";
+        return 1;
+    }
+
+    
+    plik << "len;iter_avg_ms;rek_avg_ms\n";
+
+    vector<int> sizes = { 10, 20, 50, 100,200, 400, 600, 700, 800 };
+    int repeats = 10;
+
+    for (int n : sizes) {
+        double iter_sum = 0.0;
+        double rek_sum = 0.0;
+
+        for (int r = 0; r < repeats; r++) {
+            string A = gen_string(n, alphabet, rng);
+            string B = gen_string(n, alphabet, rng);
+
+            pair<int, string> itRes, rkRes;
+
+            double it = time_ms([&]() { itRes = lcs_iter(A, B); });
+            double rk = time_ms([&]() { rkRes = lcs_rek(A, B); });
+
+            iter_sum += it;
+            rek_sum += rk;
+        }
+
+        double iter_avg = iter_sum / repeats;
+        double rek_avg = rek_sum / repeats;
+
+        plik << n << ","
+            << iter_avg << ","
+            << rek_avg << "\n";
+    }
+
+    plik.close();
+    cout << "Zapisano wyniki_lcs_avg3.csv\n";
+    return 0;
+}
