@@ -5,7 +5,6 @@
 #include <random>
 #include <chrono>
 #include <fstream>
-#include <iomanip>
 
 using namespace std;
 
@@ -27,18 +26,15 @@ pair<int, string> lcs_iter(const string& X, const string& Y) {
         if (X[i - 1] == Y[j - 1]) {
             lcs.push_back(X[i - 1]);
             --i; --j;
-        }
-        else if (c[i - 1][j] >= c[i][j - 1]) {
+        } else if (c[i - 1][j] >= c[i][j - 1]) {
             --i;
-        }
-        else {
+        } else {
             --j;
         }
     }
     reverse(lcs.begin(), lcs.end());
-    return { c[m][n], lcs };
+    return {c[m][n], lcs};
 }
-
 
 int dp_rec(int i, int j, const string& X, const string& Y, vector<vector<int>>& c) {
     if (i == 0 || j == 0) return 0;
@@ -48,9 +44,10 @@ int dp_rec(int i, int j, const string& X, const string& Y, vector<vector<int>>& 
         return c[i][j] = dp_rec(i - 1, j - 1, X, Y, c) + 1;
 
     return c[i][j] = max(dp_rec(i - 1, j, X, Y, c),
-        dp_rec(i, j - 1, X, Y, c));
+                         dp_rec(i, j - 1, X, Y, c));
 }
-// LCS rek
+
+// LCS rek (z memo)
 pair<int, string> lcs_rek(const string& X, const string& Y) {
     int m = (int)X.size(), n = (int)Y.size();
     vector<vector<int>> c(m + 1, vector<int>(n + 1, -1));
@@ -65,8 +62,7 @@ pair<int, string> lcs_rek(const string& X, const string& Y) {
         if (X[i - 1] == Y[j - 1]) {
             lcs.push_back(X[i - 1]);
             --i; --j;
-        }
-        else {
+        } else {
             if (c[i - 1][j] == -1) dp_rec(i - 1, j, X, Y, c);
             if (c[i][j - 1] == -1) dp_rec(i, j - 1, X, Y, c);
 
@@ -75,7 +71,7 @@ pair<int, string> lcs_rek(const string& X, const string& Y) {
         }
     }
     reverse(lcs.begin(), lcs.end());
-    return { len, lcs };
+    return {len, lcs};
 }
 
 string gen_string(int n, const string& alphabet, mt19937& rng) {
@@ -84,12 +80,6 @@ string gen_string(int n, const string& alphabet, mt19937& rng) {
     s.reserve(n);
     for (int i = 0; i < n; i++) s.push_back(alphabet[dist(rng)]);
     return s;
-}
-
-bool is_subsequence(const string& sub, const string& s) {
-    size_t i = 0;
-    for (char ch : s) if (i < sub.size() && sub[i] == ch) i++;
-    return i == sub.size();
 }
 
 template <typename F>
@@ -113,15 +103,13 @@ int main() {
         return 1;
     }
 
-    
     plik << "len;iter_avg_ms;rek_avg_ms\n";
 
-    vector<int> sizes = { 10, 20, 50, 100,200, 400, 600, 700, 800 };
+    vector<int> sizes = {10, 20, 50, 100, 200, 400, 600, 700, 800};
     int repeats = 10;
 
     for (int n : sizes) {
-        double iter_sum = 0.0;
-        double rek_sum = 0.0;
+        double iter_sum = 0.0, rek_sum = 0.0;
 
         for (int r = 0; r < repeats; r++) {
             string A = gen_string(n, alphabet, rng);
@@ -136,12 +124,9 @@ int main() {
             rek_sum += rk;
         }
 
-        double iter_avg = iter_sum / repeats;
-        double rek_avg = rek_sum / repeats;
-
-        plik << n << ","
-            << iter_avg << ","
-            << rek_avg << "\n";
+        plik << n << ";"
+             << (iter_sum / repeats) << ";"
+             << (rek_sum / repeats) << "\n";
     }
 
     plik.close();
