@@ -1,0 +1,122 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <queue>
+#include <unordered_map>
+
+using namespace std;
+
+struct Node {
+    long long freq = 0;
+    string sym;               
+    vector<Node*> child;       
+    bool is_leaf = false;
+
+    Node(long long f, string s, bool leaf) : freq(f), sym(std::move(s)), is_leaf(leaf) {}
+};
+
+struct Cmp {
+    bool operator()(const Node* a, const Node* b) const {
+        return a->freq > b->freq; 
+    }
+};
+
+void build_codes(Node* u, string& path, unordered_map<string, string>& codes) {
+    if (!u) return;
+
+    if (u->is_leaf) {
+        if (!u->sym.empty()) {
+            if (path.empty()) codes[u->sym] = "0";
+            else codes[u->sym] = path;
+        }
+        return;
+    }
+
+    for (int i = 0; i < (int)u->child.size(); ++i) {
+        path.push_back(char('0' + i));
+        build_codes(u->child[i], path, codes);
+        path.pop_back();
+    }
+}
+
+// Budowa drzewa Huffmana dla arności d (d=2 binarny, d=3 ternarny)
+Node* huffman_build(const vector<pair<string, long long>>& symbols, int d) {
+    priority_queue<Node*, vector<Node*>, Cmp> pq;
+
+    // liście
+    for (auto& [s, f] : symbols) {
+        pq.push(new Node(f, s, true));
+    }
+
+    int n = (int)pq.size();
+    if (n == 0) return nullptr;
+    if (n == 1) {
+        return pq.top();
+    }
+
+    
+    int mod = (n - 1) % (d - 1);
+    if (mod != 0) {
+        int need = (d - 1) - mod;
+        for (int i = 0; i < need; ++i) {
+            pq.push(new Node(0, "", true)); 
+        }
+    }
+
+    
+    while ((int)pq.size() > 1) {
+        vector<Node*> taken;
+        taken.reserve(d);
+        long long sum = 0;
+
+        for (int i = 0; i < d; ++i) {
+            Node* x = pq.top(); pq.pop();
+            taken.push_back(x);
+            sum += x->freq;
+        }
+
+        Node* z = new Node(sum, "", false);
+        z->child = taken; 
+        pq.push(z);
+    }
+
+    return pq.top();
+}
+
+// Zwraca mapę
+unordered_map<string, string> huffman_codes(const vector<pair<string, long long>>& symbols, int d) {
+    Node* root = huffman_build(symbols, d);
+    unordered_map<string, string> codes;
+    string path;
+    build_codes(root, path, codes);
+    return codes;
+}
+
+int main() {
+    vector<pair<string, long long>> C = {
+        {"a", 15000},
+        {"b",  2000},
+        {"c", 20000},
+        {"d",  3000},
+        {"e",  1000},
+        {"f",   500}
+    };
+
+    // Binarny Huffman
+    auto bin = huffman_codes(C, 2);
+    cout << "BINARNY (0/1):\n";
+    for (auto& [s, f] : C) {
+        cout << s << " -> " << bin[s] << "\n";
+    }
+
+    cout << "\n";
+
+    // Ternarny Huffman
+    auto ter = huffman_codes(C, 3);
+    cout << "TERNARNY (0/1/2):\n";
+    for (auto& [s, f] : C) {
+        cout << s << " -> " << ter[s] << "\n";
+    }
+
+    return 0;
+}
