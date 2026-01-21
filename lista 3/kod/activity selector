@@ -9,11 +9,10 @@
 
 using namespace std;
 
-
-// liczniki krokow/porownan 
-long long iter_checks = 0;      
-long long rec_while_steps = 0;  
-long long dp_bin_steps = 0;    
+// liczniki krokow/porownan
+long long iter_checks = 0;
+long long rec_while_steps = 0;
+long long dp_bin_steps = 0;
 
 void reset_counters() {
     iter_checks = 0;
@@ -21,20 +20,11 @@ void reset_counters() {
     dp_bin_steps = 0;
 }
 
-bool ok_schedule(const vector<int>& s, const vector<int>& f, const vector<int>& pick) {
-    for (int i = 1; i < (int)pick.size(); i++) {
-        int prev = pick[i - 1];
-        int cur = pick[i];
-        if (f[prev] > s[cur]) return false;
-    }
-    return true;
-}
-
 // Rek
 vector<int> RECURSIVE_ACTIVITY_SELECTOR(const vector<int>& s,
-    const vector<int>& f,
-    int k,
-    int n) {
+                                       const vector<int>& f,
+                                       int k,
+                                       int n) {
     int m = k + 1;
 
     while (m <= n && s[m] < f[k]) {
@@ -48,16 +38,15 @@ vector<int> RECURSIVE_ACTIVITY_SELECTOR(const vector<int>& s,
         vector<int> tail = RECURSIVE_ACTIVITY_SELECTOR(s, f, m, n);
         res.insert(res.end(), tail.begin(), tail.end());
         return res;
-    }
-    else {
+    } else {
         return {};
     }
 }
 
 // iter
 vector<int> ACTIVITY_SELECTOR(const vector<int>& s,
-    const vector<int>& f,
-    int n) {
+                             const vector<int>& f,
+                             int n) {
     vector<int> A;
     if (n <= 0) return A;
 
@@ -65,7 +54,7 @@ vector<int> ACTIVITY_SELECTOR(const vector<int>& s,
     int k = 1;
 
     for (int m = 2; m <= n; m++) {
-        iter_checks++;               // licznik "porownan" w if
+        iter_checks++; // licznik "porownan" w if
         if (s[m] >= f[k]) {
             A.push_back(m);
             k = m;
@@ -74,10 +63,10 @@ vector<int> ACTIVITY_SELECTOR(const vector<int>& s,
     return A;
 }
 
-
+// Dynamiczne (z binarnym wyznaczaniem p[i])
 vector<int> DP_ACTIVITY_SELECTOR(const vector<int>& s,
-    const vector<int>& f,
-    int n) {
+                                const vector<int>& f,
+                                int n) {
     if (n <= 0) return {};
 
     vector<int> p(n + 1, 0);
@@ -109,7 +98,6 @@ vector<int> DP_ACTIVITY_SELECTOR(const vector<int>& s,
 }
 
 // Pomiar czasu
-
 template <typename F>
 double time_ms(F fun) {
     auto t1 = chrono::high_resolution_clock::now();
@@ -118,7 +106,7 @@ double time_ms(F fun) {
     return chrono::duration<double, milli>(t2 - t1).count();
 }
 
-// Generowanie danych+ sort po f 
+// Generowanie danych + sort po f
 void generate_data(int n, mt19937& rng, vector<int>& s, vector<int>& f) {
     uniform_int_distribution<int> distS(0, 100000);
     uniform_int_distribution<int> distD(1, 1000);
@@ -128,15 +116,15 @@ void generate_data(int n, mt19937& rng, vector<int>& s, vector<int>& f) {
     for (int i = 0; i < n; i++) {
         int start = distS(rng);
         int finish = start + distD(rng);
-        acts.push_back({ finish, start }); // sortujemy po finish
+        acts.push_back({finish, start}); // sortujemy po finish
     }
 
-    sort(acts.begin(), acts.end()); //rosnaco po finish
+    sort(acts.begin(), acts.end()); // rosnaco po finish
 
     s.assign(n + 1, 0);
     f.assign(n + 1, 0);
 
-    // sztuczne 0 
+    // sztuczne 0
     s[0] = 0;
     f[0] = -1000000000; // -infinity
 
@@ -146,8 +134,6 @@ void generate_data(int n, mt19937& rng, vector<int>& s, vector<int>& f) {
     }
 }
 
-// testy
-
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -155,7 +141,7 @@ int main() {
     mt19937 rng(12345);
 
     ofstream out("wyniki_activity_kroki.csv");
-    out.imbue(std::locale::classic());      // wymusza kropke jako separator dziesietny
+    out.imbue(std::locale::classic()); // wymusza kropke jako separator 
     out << fixed << setprecision(6);
     if (!out) {
         cout << "Blad zapisu pliku!\n";
@@ -167,7 +153,7 @@ int main() {
         "iter_cnt,rec_cnt,dp_cnt,"
         "iter_checks_avg,rec_while_steps_avg,dp_bin_steps_avg\n";
 
-    vector<int> sizes = { 100, 500, 1000, 2000, 5000, 10000 };
+    vector<int> sizes = {100, 500, 1000, 2000, 5000, 10000};
     int repeats = 10;
 
     for (int n : sizes) {
@@ -175,7 +161,6 @@ int main() {
         long long sumIterChecks = 0, sumRecSteps = 0, sumDpSteps = 0;
 
         int lastIterCnt = 0, lastRecCnt = 0, lastDpCnt = 0;
-        bool allIterOk = true, allRecOk = true, allDpOk = true;
 
         for (int r = 0; r < repeats; r++) {
             vector<int> s, f;
@@ -183,12 +168,12 @@ int main() {
 
             vector<int> pickIter, pickRec, pickDp;
 
-            //iter 
+            // iter
             reset_counters();
             double tIter = time_ms([&]() { pickIter = ACTIVITY_SELECTOR(s, f, n); });
             long long iterC = iter_checks;
 
-            //rec
+            // rec
             reset_counters();
             double tRec = time_ms([&]() { pickRec = RECURSIVE_ACTIVITY_SELECTOR(s, f, 0, n); });
             long long recC = rec_while_steps;
@@ -202,12 +187,6 @@ int main() {
             sumIterChecks += iterC;
             sumRecSteps += recC;
             sumDpSteps += dpC;
-
-            bool iter_ok = ok_schedule(s, f, pickIter);
-            bool rec_ok = ok_schedule(s, f, pickRec);
-            bool dp_ok = ok_schedule(s, f, pickDp);
-
-           
 
             lastIterCnt = (int)pickIter.size();
             lastRecCnt = (int)pickRec.size();
