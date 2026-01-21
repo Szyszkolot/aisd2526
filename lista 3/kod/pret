@@ -1,0 +1,232 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+
+using namespace std;
+
+using ll = long long;
+static const ll NEG_INF = -(1LL << 60);
+
+
+template <typename F>
+double time_ms(F fun) {
+    auto t1 = chrono::high_resolution_clock::now();
+    fun();
+    auto t2 = chrono::high_resolution_clock::now();
+    return chrono::duration<double, milli>(t2 - t1).count();
+}
+
+
+vector<int> recover_cuts(const vector<int>& s, int n) {
+    vector<int> cuts;
+    while (n > 0) {
+        int first = s[n];
+        if (first <= 0) break; // zabezpieczenie
+        cuts.push_back(first);
+        n -= first;
+    }
+    return cuts;
+}
+
+// Naiwny rek
+ll naive_cut_rod(const vector<ll>& p, int n) {
+    if (n == 0) return 0;
+    ll q = NEG_INF;
+    for (int i = 1; i <= n; ++i) {
+        q = max(q, p[i] + naive_cut_rod(p, n - i));
+    }
+    return q;
+}
+
+// Memo
+ll memo_rec(const vector<ll>& p, vector<ll>& r, vector<int>& s, int n) {
+    if (r[n] != -(1LL << 62)) return r[n]; // już policzone
+
+    if (n == 0) {
+        r[n] = 0;
+        return 0;
+    }
+
+    ll best = NEG_INF;
+    int best_i = 0;
+
+    for (int i = 1; i <= n; ++i) {
+        ll val = p[i] + memo_rec(p, r, s, n - i);
+        if (val > best) {
+            best = val;
+            best_i = i;
+        }
+    }
+
+    r[n] = best;
+    s[n] = best_i;
+    return r[n];
+}
+
+pair<ll, vector<int>> memoized_cut_rod(const vector<ll>& p, int n) {
+    vector<ll> r(n + 1, -(1LL << 62));
+    vector<int> s(n + 1, 0);
+
+    ll best = memo_rec(p, r, s, n);
+    vector<int> cuts = recover_cuts(s, n);
+    return { best, cuts };
+}
+
+// Iter
+pair<ll, vector<int>> ext_cut_rod(const vector<ll>& p, int n) {
+    vector<ll> r(n + 1, 0);
+    vector<int> s(n + 1, 0);
+
+    r[0] = 0;
+    for (int j = 1; j <= n; ++j) {
+        ll best = NEG_INF;
+        int best_i = 0;
+
+        for (int i = 1; i <= j; ++i) {
+            ll val = p[i] + r[j - i];
+            if (val > best) {
+                best = val;
+                best_i = i;
+            }
+        }
+        r[j] = best;
+        s[j] = best_i;
+    }
+
+    vector<int> cuts = recover_cuts(s, n);
+    return { r[n], cuts };
+}
+
+
+// Generowanie cen p
+vector<ll> make_prices(int n, mt19937& rng) {
+    // przykładowe ceny
+    uniform_int_distribution<int> noise(-3, 6);
+    vector<ll> p(n + 1, 0);
+    for (int i = 1; i <= n; ++i) {
+        p[i] = 2LL * i + noise(rng);
+        if (p[i] < 0) p[i] = 0;
+    }
+    return p;
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    mt19937 rng(12345);
+
+    ofstream out("wyniki_cutrod.csv");
+    out << fixed << setprecision(6);
+    if (!out) {
+        cout << "Blad zapisu pliku!\n";
+        return 1;
+    }
+
+    // CSV 
+    out << "n;naive_avg_ms;memo_avg_ms;iter_avg_ms;naive_val;memo_val;iter_val;memo_cuts_preview;iter_cuts_preview\n";
+
+    vector<int> small_ns = { 5, 10, 15, 20 };                 
+    vector<int> big_ns = { 50, 100, 200, 400, 800, 1200 };  // tu już tylko memo/iter
+
+    int repeats_small = 3;
+    int repeats_big = 5;
+
+    // małe n: 3 algorytmy
+    for (int n : small_ns) {
+        double sum_naive = 0.0, sum_memo = 0.0, sum_iter = 0.0;
+        ll last_naive_val = 0, last_memo_val = 0, last_iter_val = 0;
+        vector<int> last_memo_cuts, last_iter_cuts;
+
+        for (int rep = 0; rep < repeats_small; ++rep) {
+            vector<ll> p = make_prices(n, rng);
+
+            ll naive_val = 0;
+            pair<ll, vector<int>> memo_res;
+            pair<ll, vector<int>> iter_res;
+
+            double t1 = time_ms([&]() { naive_val = naive_cut_rod(p, n); });
+            double t2 = time_ms([&]() { memo_res = memoized_cut_rod(p, n); });
+            double t3 = time_ms([&]() { iter_res = ext_cut_rod(p, n); });
+
+            sum_naive += t1;
+            sum_memo += t2;
+            sum_iter += t3;
+
+            last_naive_val = naive_val;
+            last_memo_val = memo_res.first;
+            last_iter_val = iter_res.first;
+            last_memo_cuts = memo_res.second;
+            last_iter_cuts = iter_res.second;
+        }
+
+        // preview cięć (max 8)
+        auto cuts_preview = [](const vector<int>& cuts) {
+            string s = "[";
+            int k = (int)min<size_t>(cuts.size(), 8);
+            for (int i = 0; i < k; ++i) {
+                if (i) s += ",";
+                s += to_string(cuts[i]);
+            }
+            if ((int)cuts.size() > 8) s += ",...";
+            s += "]";
+            return s;
+            };
+
+        out << n << ";"
+            << (sum_naive / repeats_small) << ";"
+            << (sum_memo / repeats_small) << ";"
+            << (sum_iter / repeats_small) << ";"
+            << last_naive_val << ";"
+            << last_memo_val << ";"
+            << last_iter_val << ";"
+            << cuts_preview(last_memo_cuts) << ";"
+            << cuts_preview(last_iter_cuts)
+            << "\n";
+
+        cout << "Done small n=" << n << "\n";
+    }
+
+    //duże n: memo vs iter
+    for (int n : big_ns) {
+        double sum_memo = 0.0, sum_iter = 0.0;
+        ll last_memo_val = 0, last_iter_val = 0;
+
+        for (int rep = 0; rep < repeats_big; ++rep) {
+            vector<ll> p = make_prices(n, rng);
+
+            pair<ll, vector<int>> memo_res;
+            pair<ll, vector<int>> iter_res;
+
+            double t2 = time_ms([&]() { memo_res = memoized_cut_rod(p, n); });
+            double t3 = time_ms([&]() { iter_res = ext_cut_rod(p, n); });
+
+            sum_memo += t2;
+            sum_iter += t3;
+
+            last_memo_val = memo_res.first;
+            last_iter_val = iter_res.first;
+        }
+
+        out << n << ";"
+            << "NA" << ";"                 // naive nie liczymy dla dużych n
+            << (sum_memo / repeats_big) << ";"
+            << (sum_iter / repeats_big) << ";"
+            << "NA" << ";"                   
+            << last_memo_val << ";"
+            << last_iter_val << ";"
+            << "[]" << ";"                 
+            << "[]"
+            << "\n";
+
+        cout << "Done big n=" << n << "\n";
+    }
+
+    out.close();
+    cout << "Zapisano wyniki_cutrod.csv\n";
+    return 0;
+}
